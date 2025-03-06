@@ -1,0 +1,11 @@
+# Ignore Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pyz.d
+
+# Ignore persistent virtual MAC file
+virtual_mac.txt
