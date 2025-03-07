@@ -1,38 +1,27 @@
 import socket
-from osi import ApplicationLayer, DataLinkLayer
+import json
 
-def get_local_ip() -> str:
-    """
-    Determine the real IP address of the current machine.
-    This method creates a dummy connection to a public DNS server to fetch the local IP.
-    """
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        # Connect to a public server (Google's DNS server here); no data is sent.
-        s.connect(("8.8.8.8", 80))
-        local_ip = s.getsockname()[0]
-    except Exception:
-        local_ip = "127.0.0.1"
-    finally:
-        s.close()
-    return local_ip
+def register_with_osi(client_socket, listening_port):
+    # Create a registration message.
+    reg_message = {
+        "type": "register",
+        "port": listening_port
+    }
+    # Send the registration message.
+    reg_str = json.dumps(reg_message)
+    client_socket.sendall(reg_str.encode('utf-8'))
+    print(f"Registered with OSI server on port {listening_port}.")
 
 def main():
-    # Ask for the sender's name once at the beginning.
+    # Ask for the sender's name.
     sender_name = input("Enter your name: ").strip()
 
-    # Display the user's real IP address.
-    real_ip = get_local_ip()
-    print(f"Your real IP address is: {real_ip}")
-    
-    # Create an instance of the Data Link Layer to generate a virtual MAC address.
-    data_link_layer = DataLinkLayer()
-    virtual_mac = data_link_layer.get_virtual_mac()
-    print(f"Your virtual MAC address is: {virtual_mac}\n")
-    
-    # Create an instance of the ApplicationLayer.
-    app_layer = ApplicationLayer()
+    # Automatically use localhost since the OSI server is running on the same machine.
+    osi_server_ip = "localhost"
+    port = 5000
+    listening_port = 3000
 
+    # Display the welcome banner.
     banner = r"""
  /$$$$$$$$ /$$                        /$$$$$$                  /$$                    
 |__  $$__/| $$                       /$$__  $$                | $$                    
@@ -43,30 +32,49 @@ def main():
    | $$   | $$  | $$|  $$$$$$$      |  $$$$$$/| $$      |  $$$$$$$|  $$$$$$$| $$      
    |__/   |__/  |__/ \_______/       \______/ |__/       \_______/ \_______/|__/      
           
-Welcome to The Order {}! We are a secret society of hackers who communicate through a secret chat application. 
+Welcome to The Order {}! We are a secret society of hackers who communicate through a secret chat application.
     """
-
     print(banner.format(sender_name))
 
-    while True:
-        # Ask for the receiver's IP address.
-        ip_address = input("Enter the IP address of the receiver (or type 'exit' to quit): ").strip()
-        if ip_address.lower() == 'exit':
-            print("Exiting ChatApp.")
-            break
+    # Secure a persistent connection to the OSI server.
+    try:
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((osi_server_ip, port))
+        print(f"Connected to OSI Server at {osi_server_ip}:{port}\n")
+    except Exception as e:
+        print("Failed to connect to OSI Server:", e)
+        return
+    
+    # Immediately register this connection to receive messages on port 3000.
+    register_with_osi(client_socket, listening_port)
 
-        # Ask for the message content.
-        content = input("Enter your message: ").strip()
+    # Main chat loop using the persistent connection.
+    try:
+        while True:
+            # Ask for the destination IP (this simulates the target; even if on the same machine, you can send to "localhost" or other virtual IPs).
+            dest_ip = input("Enter destination IP address (or type 'exit' to quit): ").strip()
+            if dest_ip.lower() == "exit":
+                print("Exiting Chat App.")
+                break
 
-        # Create a generic message object (a dictionary in this case).
-        message_obj = {
-            "sender": sender_name,
-            "content": content
-        }
+            content = input("Enter your message: ").strip()
 
-        # Use the Application Layer to send the generic object.
-        app_layer.send(ip_address, message_obj)
-        print()  # Blank line for readability.
+            # Create a message object that includes sender, content, and destination.
+            message_obj = {
+                "sender": sender_name,
+                "content": content,
+                "destination": dest_ip,
+                "dest_port": listening_port
+            }
+
+            # Serialize the message and send it over the persistent socket.
+            message_str = json.dumps(message_obj)
+            client_socket.sendall(message_str.encode('utf-8'))
+            print("Message sent via OSI server.\n")
+    except Exception as e:
+        print("Error during communication:", e)
+    finally:
+        client_socket.close()
 
 if __name__ == "__main__":
     main()

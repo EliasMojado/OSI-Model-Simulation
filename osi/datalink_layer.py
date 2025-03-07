@@ -9,7 +9,6 @@ def generate_virtual_mac() -> str:
     Checks if VIRTUAL_MAC_FILE exists; if so, reads the MAC from it.
     Otherwise, generates a new one, writes it to the file, and returns it.
     """
-    # Check if the file exists and has content.
     if os.path.exists(VIRTUAL_MAC_FILE):
         with open(VIRTUAL_MAC_FILE, "r") as file:
             mac_address = file.read().strip()
@@ -17,11 +16,9 @@ def generate_virtual_mac() -> str:
                 print(f"[DataLinkLayer] Loaded persistent virtual MAC from file: {mac_address}")
                 return mac_address
 
-    # If no file exists, generate a new MAC.
     mac_bytes = [random.randint(0, 255) for _ in range(6)]
     mac_address = ':'.join(f'{byte:02x}' for byte in mac_bytes)
 
-    # Save the new MAC to the file.
     with open(VIRTUAL_MAC_FILE, "w") as file:
         file.write(mac_address)
 

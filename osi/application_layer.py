@@ -1,7 +1,9 @@
 class ApplicationLayer:
+    def process_message(self, message: object):
+        # For demonstration, simply print the processed message.
+        print(f"[ApplicationLayer] Processed message: {message}")
+
     def send(self, ip_address: str, data: object) -> None:
-        """
-        Simulate sending data through the Application Layer.
-        The data parameter is generic—it could be any object.
-        """
+        # In our simulation, the Application Layer's send function is used
+        # by the OSI server's send_message method.
         print(f"[ApplicationLayer] Sending data to {ip_address}: {data}")
