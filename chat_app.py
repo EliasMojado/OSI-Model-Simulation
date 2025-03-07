@@ -1,10 +1,26 @@
 import socket
 import json
 import threading
+import os
 
 # Global inbox list and a lock for thread safety
 inbox = []
 inbox_lock = threading.Lock()
+
+def clear_screen():
+    """Clears the terminal screen."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def get_own_ip():
+    """Attempts to retrieve the host machine's IP address."""
+    try:
+        # Connect to an external host to get the actual IP.
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"
+    return ip
 
 def register_with_osi(client_socket, listening_port):
     """
@@ -90,30 +106,12 @@ def view_inbox():
 def home_page(sender_name, client_socket, osi_server_ip, osi_server_port, listening_port):
     """
     Displays a home page with a banner and a menu for sending messages or viewing the inbox.
+    The user's own IP address is displayed at the top.
     """
+    own_ip = get_own_ip()
     while True:
-        print("\nHome Page:")
-        print("1. Send Message")
-        print("2. View Inbox")
-        print("3. Exit")
-        choice = input("Select an option: ").strip()
-        if choice == '1':
-            send_message(client_socket, sender_name, listening_port)
-        elif choice == '2':
-            view_inbox()
-        elif choice == '3':
-            print("Exiting Chat App.")
-            break
-        else:
-            print("Invalid option. Please choose again.")
-
-def main():
-    sender_name = input("Enter your name: ").strip()
-    osi_server_ip = "localhost"
-    osi_server_port = 5000
-    listening_port = 3000  # Port for receiving messages
-
-    banner = r"""
+        clear_screen()
+        banner = r"""
  /$$$$$$$$ /$$                        /$$$$$$                  /$$                    
 |__  $$__/| $$                       /$$__  $$                | $$                    
    | $$   | $$$$$$$   /$$$$$$       | $$  \ $$  /$$$$$$   /$$$$$$$  /$$$$$$   /$$$$$$ 
@@ -123,9 +121,34 @@ def main():
    | $$   | $$  | $$|  $$$$$$$      |  $$$$$$/| $$      |  $$$$$$$|  $$$$$$$| $$      
    |__/   |__/  |__/ \_______/       \______/ |__/       \_______/ \_______/|__/      
           
-Welcome to The Order {0}! We are a secret society of hackers who communicate through a secret chat application.
-    """
-    print(banner.format(sender_name))
+Welcome to The Order {0}!
+Your IP Address: {1}
+
+A secret society of hackers communicating through a secret chat app.
+        """
+        print(banner.format(sender_name, own_ip))
+        print("1. Send Message")
+        print("2. View Inbox")
+        print("3. Exit")
+        choice = input("Select an option: ").strip()
+        if choice == '1':
+            send_message(client_socket, sender_name, listening_port)
+            input("Press Enter to continue...")  # Pause for the user.
+        elif choice == '2':
+            view_inbox()
+            input("Press Enter to continue...")  # Pause to let the user review.
+        elif choice == '3':
+            print("Exiting Chat App.")
+            break
+        else:
+            print("Invalid option. Please choose again.")
+            input("Press Enter to continue...")
+
+def main():
+    sender_name = input("Enter your name: ").strip()
+    osi_server_ip = "localhost"
+    osi_server_port = 5000
+    listening_port = 3000  # Port for receiving messages
 
     # Start the inbox listener thread.
     threading.Thread(target=inbox_listener, args=(listening_port,), daemon=True).start()
