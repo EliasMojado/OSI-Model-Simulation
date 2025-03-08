@@ -34,3 +34,13 @@ class TransportLayer:
         else:
             print(f"[TransportLayer] No registered connection for port {dest_port}.")
         return False
+    
+    def encapsulate(self, data: bytes, dest_port: int) -> bytes:
+        """
+        Encapsulate the data with a transport header that includes the destination port.
+        This header is prepended to the given bytes data.
+        """
+        header = f"TRANS_HEADER:{dest_port}|".encode('utf-8')
+        encapsulated_data = header + data
+        print(f"[TransportLayer] Encapsulated data: {encapsulated_data}")
+        return encapsulated_data

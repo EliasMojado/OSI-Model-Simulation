@@ -55,6 +55,7 @@ def handle_incoming_message(conn, addr):
     global inbox
     try:
         data = conn.recv(4096)
+        print("Received data:", data)
         if data:
             message_str = data.decode('utf-8')
             try:

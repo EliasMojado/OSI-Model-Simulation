@@ -74,17 +74,17 @@ class SessionLayer:
             print(f"[SessionLayer] Error initiating session: {e}")
             return None
 
-    def encapsulate(self, data: str) -> str:
-        """
-        Encapsulate the data with the session id header.
-        If the session hasn't been established yet, attempt to establish it first.
-        """
+    def encapsulate(self, data: bytes, receiver_ip: str = None) -> bytes:
         if not self.session_id:
+            if receiver_ip is not None:
+                self.receiver_ip = receiver_ip
             print("[SessionLayer] No active session. Establishing session now...")
             if not self.establish_session():
                 raise Exception("Failed to establish session with the receiver.")
-
-        # Attach the session id as a header to the data.
-        encapsulated_data = f"SESSION_ID:{self.session_id}|{data}"
+        # Convert session header to bytes and concatenate with the already encoded data.
+        header = f"SESSION_ID:{self.session_id}|".encode('utf-8')
+        encapsulated_data = header + data
         print(f"[SessionLayer] Encapsulated data: {encapsulated_data}")
         return encapsulated_data
+
+
