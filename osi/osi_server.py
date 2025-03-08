@@ -35,7 +35,7 @@ class OSIServer:
         self.data_link_layer = DataLinkLayer()
         self.physical_layer = PhysicalLayer()
         self.server_socket = None
-        self.registered_clients = {}  # {client_ip: {"conn": connection, "listening_port": port}}
+        self.registered_clients = {}
 
     def start(self):
         print("OSI: [start]")

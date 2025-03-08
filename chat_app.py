@@ -2,6 +2,7 @@ import socket
 import json
 import threading
 import os
+from datetime import datetime
 
 # Global inbox list and a lock for thread safety
 inbox = []
@@ -55,7 +56,6 @@ def handle_incoming_message(conn, addr):
     global inbox
     try:
         data = conn.recv(4096)
-        print("Received data:", data)
         if data:
             message_str = data.decode('utf-8')
             try:
@@ -65,7 +65,6 @@ def handle_incoming_message(conn, addr):
                 return
             with inbox_lock:
                 inbox.append(message_obj)
-            print(f"New message received from {addr}.")
     except Exception as e:
         print("Error in inbox listener:", e)
     finally:
@@ -78,9 +77,12 @@ def send_message(client_socket, sender_name, listening_port):
     """
     dest_ip = input("Enter destination IP address: ").strip()
     content = input("Enter your message: ").strip()
+    # Get current date and time in a readable format.
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     message_obj = {
         "sender": sender_name,
         "content": content,
+        "timestamp": timestamp,
         "destination": dest_ip,
         "dest_port": listening_port
     }
@@ -94,14 +96,16 @@ def view_inbox():
     """
     global inbox
     with inbox_lock:
+        count = len(inbox)
         if not inbox:
             print("Inbox is empty.")
         else:
-            print("\nInbox messages:")
+            print(f"\nInbox messages ({count}):")
             for idx, message in enumerate(inbox, start=1):
                 sender = message.get('sender', 'Unknown')
                 content = message.get('content', '')
-                print(f"{idx}. From: {sender} - {content}")
+                timestamp = message.get('timestamp', 'No timestamp')
+                print(f"{idx}. [{timestamp}] From: {sender} - {content}")
             print("")  # blank line for readability
 
 def home_page(sender_name, client_socket, osi_server_ip, osi_server_port, listening_port):
@@ -112,6 +116,9 @@ def home_page(sender_name, client_socket, osi_server_ip, osi_server_port, listen
     own_ip = get_own_ip()
     while True:
         clear_screen()
+        # Show inbox count in the banner
+        with inbox_lock:
+            inbox_count = len(inbox)
         banner = r"""
  /$$$$$$$$ /$$                        /$$$$$$                  /$$                    
 |__  $$__/| $$                       /$$__  $$                | $$                    
@@ -129,7 +136,7 @@ A secret society of hackers communicating through a secret chat app.
         """
         print(banner.format(sender_name, own_ip))
         print("1. Send Message")
-        print("2. View Inbox")
+        print(f"2. View Inbox ({inbox_count} messages)")
         print("3. Exit")
         choice = input("Select an option: ").strip()
         if choice == '1':
