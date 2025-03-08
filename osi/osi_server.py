@@ -106,22 +106,21 @@ class OSIServer:
             print("OSI: [process_received_data] - Starting decapsulation chain")
             # Step 1: Data Link Layer decapsulation.
             data = self.data_link_layer.decapsulate(raw_data)
-            print("After Data Link decapsulation:", data)
+
             # Step 2: Network Layer decapsulation.
             data, sender_ip = self.network_layer.decapsulate(data)
-            print("After Network decapsulation:", data)
+
             # Step 3: Transport Layer decapsulation.
             data, extracted_port = self.transport_layer.decapsulate(data)
-            print("After Transport decapsulation:", data)
+            
             # Step 4: Session Layer decapsulation.
             data = self.session_layer.decapsulate(data, sender_ip)
-            print("After Session decapsulation:", data)
+
             # Step 5: Presentation Layer decapsulation.
             data = self.presentation_layer.decapsulate(data)
-            print("After Presentation decapsulation:", data)
+
             # Step 6: Application Layer decapsulation.
             data = self.app_layer.decapsulate(data)
-            print("After Application decapsulation:", data)
 
             try:
                 message_obj = json.loads(data)
@@ -129,8 +128,6 @@ class OSIServer:
                 print(f"OSI: [JSON decode error] {e}")
                 return
 
-            print("OSI: [received message] - Delivering to chat app")
-            print("     ", message_obj)
             self.app_layer.process_message(message_obj, extracted_port)
         else:
             # Otherwise, assume data is already decapsulated (e.g., from a direct chat app message).
@@ -156,34 +153,22 @@ class OSIServer:
         
         # Step 1: Application Layer encapsulation
         app_encapsulated = self.app_layer.encapsulate(message_obj)
-        print("OSI: [application layer] Encapsulated data:")
-        print("     ", app_encapsulated)
         
         # Step 2: Presentation Layer encoding
         pres_encapsulated = self.presentation_layer.encapsulate(app_encapsulated)
-        print("OSI: [presentation layer] Encoded data:")
-        print("     ", pres_encapsulated)
         
         # Step 3: Session Layer encapsulation (establish session if needed)
         session_encapsulated = self.session_layer.encapsulate(pres_encapsulated, receiver_ip=ip_address)
-        print("OSI: [session layer] Encapsulated data:")
-        print("     ", session_encapsulated)
 
         # Step 4: Transport Layer encapsulation, encapsulate it with the transport header
         transport_encapsulated = self.transport_layer.encapsulate(session_encapsulated, dest_port)
-        print("OSI: [transport layer] Encapsulated data:")
-        print("     ", transport_encapsulated)
 
         # Step 5: Network Layer encapsulation, encapsulate it with the network header
         network_encapsulated = self.network_layer.encapsulate(transport_encapsulated, ip_address)
-        print("OSI: [network layer] Encapsulated data:")
-        print("     ", network_encapsulated)
 
         # Step 6: Data Link Layer encapsulation, encapsulate it with the data link header
-        data_link_encapsulated = self.data_link_layer.encapsulate(network_encapsulated)
-        print("OSI: [data link layer] Encapsulated data:")
-        print("     ", data_link_encapsulated)
-        
+        data_link_encapsulated = self.data_link_layer.encapsulate(network_encapsulated, receiver_ip=ip_address)
+
         # Step 7: Physical Layer, send the data
         self.physical_layer.transmit(data_link_encapsulated, ip_address, self.port)        
 

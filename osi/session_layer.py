@@ -5,7 +5,6 @@ class SessionLayer:
     def __init__(self, port: int = 5000):
         self.port = port
         # A dictionary mapping sender (or connection) identifiers to session ids.
-        # For example, using the sender's IP address.
         self.sessions = {}  # { sender_ip: session_id }
 
     def establish_session(self, receiver_ip: str) -> bool:
@@ -70,5 +69,6 @@ class SessionLayer:
                 raise Exception(f"Session ID mismatch: expected {expected_session_id}, got {received_session_id}")
             else:
                 print(f"[SessionLayer] Session ID validated: {received_session_id}")
+                print(f"[SessionLayer] Decapsulated data: {inner}")
             return inner.encode('utf-8')
         return data

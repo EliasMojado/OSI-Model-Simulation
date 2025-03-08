@@ -60,6 +60,7 @@ class TransportLayer:
             except Exception as e:
                 print(f"[TransportLayer] Error parsing transport header port: {e}")
                 dest_port = None
+            print(f"[TransportLayer] Decapsulated data: {inner_part}")
             return inner_part.encode('utf-8'), dest_port
         return data, None
 

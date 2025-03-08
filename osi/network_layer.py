@@ -39,5 +39,6 @@ class NetworkLayer:
             if dest_ip != self.src_ip:
                 raise Exception(f"Packet not addressed to us: expected {self.src_ip}, got {dest_ip}")
             inner = decoded[header_end+1:]
+            print(f"[NetworkLayer] Decapsulated data: {inner}")
             return inner.encode('utf-8'), sender_ip
         return data, None
