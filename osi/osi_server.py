@@ -35,7 +35,7 @@ class OSIServer:
         self.data_link_layer = DataLinkLayer()
         self.physical_layer = PhysicalLayer()
         self.server_socket = None
-        self.registered_clients = {}  # {client_ip: {"conn": connection, "listening_port": port}}
+        self.registered_clients = {}
 
     def start(self):
         print("OSI: [start]")
@@ -74,6 +74,9 @@ class OSIServer:
             listening_port = reg_msg.get("port")
             self.registered_clients[addr[0]] = {"conn": conn, "listening_port": listening_port}
             conn.sendall("ACK".encode('utf-8'))
+        elif decoded.startswith("DL_HEADER("):
+            # This is a fully encapsulated message coming from another OSI server.
+            self.process_received_data(initial_data, conn)
         else:
             # Otherwise, treat it as a session handshake request.
             self.session_layer.handle_incoming_session(conn, initial_data)
@@ -91,30 +94,60 @@ class OSIServer:
 
     def process_received_data(self, raw_data: bytes, conn: socket.socket):
         print("OSI: [process_received_data]")
-        # Simulate Data Link Layer decapsulation.
-        _ = self.data_link_layer.mac
-        # Directly decode the raw data using UTF-8.
         try:
             decoded_str = raw_data.decode('utf-8')
         except Exception as e:
             print(f"OSI: [decode error] {e}")
             return
 
-        try:
-            message_obj = json.loads(decoded_str)
-        except Exception as e:
-            print(f"OSI: [JSON decode error] {e}")
-            return
+        # If the raw data starts with the Data Link header, assume it is fully encapsulated.
+        if decoded_str.startswith("DL_HEADER("):
+            print("OSI: [process_received_data] - Starting decapsulation chain")
+            # Step 1: Data Link Layer decapsulation.
+            data = self.data_link_layer.decapsulate(raw_data)
+            print("After Data Link decapsulation:", data)
+            # Step 2: Network Layer decapsulation.
+            data = self.network_layer.decapsulate(data)
+            print("After Network decapsulation:", data)
+            # Step 3: Transport Layer decapsulation.
+            data, extracted_port = self.transport_layer.decapsulate(data)
+            print("After Transport decapsulation:", data)
+            # Step 4: Session Layer decapsulation.
+            data = self.session_layer.decapsulate(data)
+            print("After Session decapsulation:", data)
+            # Step 5: Presentation Layer decapsulation.
+            data = self.presentation_layer.decapsulate(data)
+            print("After Presentation decapsulation:", data)
+            # Step 6: Application Layer decapsulation.
+            data = self.app_layer.decapsulate(data)
+            print("After Application decapsulation:", data)
 
-        if "destination" in message_obj:
-            print("OSI: [sending message]")
-            destination_ip = message_obj.pop("destination")
-            dest_port = message_obj.pop("dest_port", self.port)
-            self.send_message(destination_ip, dest_port, message_obj)
-        else:
-            print("OSI: [received message]")
+            try:
+                message_obj = json.loads(data)
+            except Exception as e:
+                print(f"OSI: [JSON decode error] {e}")
+                return
+
+            print("OSI: [received message] - Delivering to chat app")
             print("     ", message_obj)
-            self.app_layer.process_message(message_obj)
+            self.app_layer.process_message(message_obj, extracted_port)
+        else:
+            # Otherwise, assume data is already decapsulated (e.g., from a direct chat app message).
+            try:
+                message_obj = json.loads(decoded_str)
+            except Exception as e:
+                print(f"OSI: [JSON decode error] {e}")
+                return
+
+            if "destination" in message_obj:
+                print("OSI: [sending message]")
+                destination_ip = message_obj.pop("destination")
+                dest_port = message_obj.pop("dest_port", self.port)
+                self.send_message(destination_ip, dest_port, message_obj)
+            else:
+                print("OSI: [received message] - Delivering to chat app")
+                print("     ", message_obj)
+                self.app_layer.process_message(message_obj)
 
 
     def send_message(self, ip_address: str, dest_port: int, message_obj: object):
@@ -151,7 +184,7 @@ class OSIServer:
         print("     ", data_link_encapsulated)
         
         # Step 7: Physical Layer, send the data
-        self.physical_layer.transmit(data_link_encapsulated, ip_address, dest_port)
+        self.physical_layer.transmit(data_link_encapsulated, ip_address, self.port)        
 
 
 if __name__ == "__main__":
