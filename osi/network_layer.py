@@ -16,3 +16,11 @@ class NetworkLayer:
         encapsulated_data = header_bytes + data
         print(f"[NetworkLayer] Encapsulated data: {encapsulated_data}")
         return encapsulated_data
+    
+    def decapsulate(self, data: bytes) -> bytes:
+        decoded = data.decode('utf-8')
+        if decoded.startswith("IP_HEADER:") and "|" in decoded:
+            header_end = decoded.find("|")
+            inner = decoded[header_end+1:]
+            return inner.encode('utf-8')
+        return data

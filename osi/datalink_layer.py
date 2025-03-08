@@ -26,3 +26,13 @@ class DataLinkLayer:
         framed = header + data + trailer
         print(f"[DataLinkLayer] Framed data: {framed}")
         return framed
+    
+    def decapsulate(self, data: bytes) -> bytes:
+        decoded = data.decode('utf-8')
+        # Remove the header and trailer if present.
+        if decoded.startswith("DL_HEADER(") and "|DL_TRAILER" in decoded:
+            header_end = decoded.find("|")
+            trailer_start = decoded.rfind("|DL_TRAILER")
+            inner = decoded[header_end+1:trailer_start]
+            return inner.encode('utf-8')
+        return data

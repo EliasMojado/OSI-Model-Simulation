@@ -44,3 +44,19 @@ class TransportLayer:
         encapsulated_data = header + data
         print(f"[TransportLayer] Encapsulated data: {encapsulated_data}")
         return encapsulated_data
+    
+    from typing import Tuple
+
+    def decapsulate(self, data: bytes) -> Tuple[bytes, int]:
+        decoded = data.decode('utf-8')
+        if decoded.startswith("TRANS_HEADER:") and "|" in decoded:
+            # Expected format: "TRANS_HEADER:{dest_port}|{inner_data}"
+            header_part, inner_part = decoded.split('|', 1)
+            try:
+                dest_port = int(header_part.split(':')[1])
+            except Exception as e:
+                print(f"[TransportLayer] Error parsing transport header port: {e}")
+                dest_port = None
+            return inner_part.encode('utf-8'), dest_port
+        return data, None
+
