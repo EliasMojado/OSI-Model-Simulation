@@ -3,111 +3,156 @@ import threading
 import json
 from application_layer import ApplicationLayer
 from datalink_layer import DataLinkLayer
+from presentation_layer import PresentationLayer
+from session_layer import SessionLayer
 from transport_layer import TransportLayer
+from network_layer import NetworkLayer
+from physical_layer import PhysicalLayer
+
+def get_own_ip():
+    """
+    Determine the server's own IP address by creating a dummy connection.
+    """
+    try:
+        # Connecting to an external host to get the proper IP address.
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"
+    return ip
 
 class OSIServer:
     def __init__(self, host="0.0.0.0", port=5000):
         self.host = host
         self.port = port
-        self.data_link_layer = DataLinkLayer()
+        self.ip = get_own_ip()
         self.app_layer = ApplicationLayer()
+        self.presentation_layer = PresentationLayer()
+        self.session_layer = SessionLayer(receiver_ip=None, port=port)
         self.transport_layer = TransportLayer()
+        self.network_layer = NetworkLayer(src_ip=self.ip)
+        self.data_link_layer = DataLinkLayer()
+        self.physical_layer = PhysicalLayer()
         self.server_socket = None
+        self.registered_clients = {}  # {client_ip: {"conn": connection, "listening_port": port}}
 
     def start(self):
+        print("OSI: [start]")
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
-        print(f"OSI Server is running on port {self.port}")
-        try:
-            while True:
-                conn, addr = self.server_socket.accept()
-                threading.Thread(target=self.handle_client, args=(conn, addr), daemon=True).start()
-        except KeyboardInterrupt:
-            print("Shutting down OSI Server.")
-        finally:
-            self.server_socket.close()
+        while True:
+            conn, addr = self.server_socket.accept()
+            threading.Thread(target=self.handle_client, args=(conn, addr), daemon=True).start()
 
     def handle_client(self, conn: socket.socket, addr):
-        print(f"OSI Server: Connection established with {addr}")
-        try:
-            while True:
-                data = conn.recv(1024)
-                if not data:
-                    break
-                self.process_received_data(data, conn)
-        except Exception as e:
-            print(f"Error handling client {addr}: {e}")
-        finally:
+        print("OSI: [handle_client]")
+        # Receive initial data
+        initial_data = conn.recv(1024)
+        if not initial_data:
             conn.close()
-            print(f"OSI Server: Connection closed with {addr}")
+            return
+        try:
+            decoded = initial_data.decode('utf-8').strip()
+        except Exception:
+            conn.close()
+            return
+
+        # If data starts with '{', assume it's a registration message
+        if decoded.startswith('{'):
+            try:
+                reg_msg = json.loads(decoded)
+            except Exception:
+                conn.close()
+                return
+
+            if reg_msg.get("type") != "register":
+                conn.close()
+                return
+
+            listening_port = reg_msg.get("port")
+            self.registered_clients[addr[0]] = {"conn": conn, "listening_port": listening_port}
+            conn.sendall("ACK".encode('utf-8'))
+        else:
+            # Otherwise, treat it as a session handshake request.
+            self.session_layer.handle_incoming_session(conn, initial_data)
+            conn.close()
+            return
+
+        # Now process further incoming messages on this registration connection.
+        while True:
+            data = conn.recv(1024)
+            if not data:
+                break
+            self.process_received_data(data, conn)
+        conn.close()
+        self.registered_clients.pop(addr[0], None)
 
     def process_received_data(self, raw_data: bytes, conn: socket.socket):
-        # Simulate Physical Layer reception.
-        print("[PhysicalLayer] Received raw data:", raw_data)
-        
+        print("OSI: [process_received_data]")
         # Simulate Data Link Layer decapsulation.
-        virtual_mac = self.data_link_layer.get_virtual_mac()
-        print(f"[DataLinkLayer] Decapsulating frame using virtual MAC: {virtual_mac}...")
-        
-        # Simulate processing at the upper layers.
-        print("[Network/Transport/Session/Presentation Layers] Processing data...")
-        
-        # Decode the received data (assumed to be JSON-encoded).
+        _ = self.data_link_layer.mac
+        # Directly decode the raw data using UTF-8.
         try:
-            message_obj = json.loads(raw_data.decode('utf-8'))
+            decoded_str = raw_data.decode('utf-8')
         except Exception as e:
-            print("Error decoding message:", e)
+            print(f"OSI: [decode error] {e}")
             return
 
-        # Check if this is a registration message.
-        if message_obj.get("type") == "register":
-            reg_port = message_obj.get("port")
-            if reg_port is not None:
-                self.transport_layer.register(reg_port, conn)
+        try:
+            message_obj = json.loads(decoded_str)
+        except Exception as e:
+            print(f"OSI: [JSON decode error] {e}")
             return
 
-        # Check for destination information.
         if "destination" in message_obj:
+            print("OSI: [sending message]")
             destination_ip = message_obj.pop("destination")
-            # Use provided destination port, or default to the OSI server's port.
             dest_port = message_obj.pop("dest_port", self.port)
-            print(f"[OSI Server] Received send command for destination {destination_ip}:{dest_port}")
             self.send_message(destination_ip, dest_port, message_obj)
         else:
-            # Otherwise, deliver the message to this server's Application Layer.
+            print("OSI: [received message]")
+            print("     ", message_obj)
             self.app_layer.process_message(message_obj)
 
-    def send_message(self, ip_address: str, dest_port: int, message_obj: object):
-        # Simulate encapsulation at the Application Layer.
-        print("[ApplicationLayer] Preparing to send message:", message_obj)
-        
-        # Simulate encapsulation at the upper layers.
-        print("[Presentation/Session/Transport/Network Layers] Encapsulating message...")
-        
-        # Simulate Data Link Layer encapsulation.
-        virtual_mac = self.data_link_layer.get_virtual_mac()
-        print(f"[DataLinkLayer] Encapsulating frame with virtual MAC: {virtual_mac}...")
-        
-        # Simulate Physical Layer conversion to raw bytes.
-        try:
-            message_str = json.dumps(message_obj)
-        except Exception as e:
-            print("Error encoding message:", e)
-            return
-        raw_data = message_str.encode('utf-8')
-        print("[PhysicalLayer] Sending raw data:", raw_data)
 
-        # Use the transport layer's port registry to send the message if possible.
-        if not self.transport_layer.send_via_registered(dest_port, message_obj):
-            # Fallback: Open a new socket connection to the destination.
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.connect((ip_address, dest_port))
-                    s.sendall(raw_data)
-                    print(f"Message sent to {ip_address}:{dest_port} through OSI layers.")
-            except Exception as e:
-                print(f"Error sending message to {ip_address}:{dest_port}: {e}")
+    def send_message(self, ip_address: str, dest_port: int, message_obj: object):
+        print("OSI: [send message] - Start sending message")
+        
+        # Step 1: Application Layer encapsulation
+        app_encapsulated = self.app_layer.encapsulate(message_obj)
+        print("OSI: [application layer] Encapsulated data:")
+        print("     ", app_encapsulated)
+        
+        # Step 2: Presentation Layer encoding
+        pres_encapsulated = self.presentation_layer.encapsulate(app_encapsulated)
+        print("OSI: [presentation layer] Encoded data:")
+        print("     ", pres_encapsulated)
+        
+        # Step 3: Session Layer encapsulation (establish session if needed)
+        session_encapsulated = self.session_layer.encapsulate(pres_encapsulated, receiver_ip=ip_address)
+        print("OSI: [session layer] Encapsulated data:")
+        print("     ", session_encapsulated)
+
+        # Step 4: Transport Layer encapsulation, encapsulate it with the transport header
+        transport_encapsulated = self.transport_layer.encapsulate(session_encapsulated, dest_port)
+        print("OSI: [transport layer] Encapsulated data:")
+        print("     ", transport_encapsulated)
+
+        # Step 5: Network Layer encapsulation, encapsulate it with the network header
+        network_encapsulated = self.network_layer.encapsulate(transport_encapsulated, ip_address)
+        print("OSI: [network layer] Encapsulated data:")
+        print("     ", network_encapsulated)
+
+        # Step 6: Data Link Layer encapsulation, encapsulate it with the data link header
+        data_link_encapsulated = self.data_link_layer.encapsulate(network_encapsulated)
+        print("OSI: [data link layer] Encapsulated data:")
+        print("     ", data_link_encapsulated)
+        
+        # Step 7: Physical Layer, send the data
+        self.physical_layer.transmit(data_link_encapsulated, ip_address, dest_port)
+
 
 if __name__ == "__main__":
     server = OSIServer()

@@ -1,33 +1,28 @@
-import random
-import os
+import uuid
 
-VIRTUAL_MAC_FILE = "virtual_mac.txt"
-
-def generate_virtual_mac() -> str:
+def get_mac_address() -> str:
     """
-    Generate or retrieve a persistent virtual MAC address.
-    Checks if VIRTUAL_MAC_FILE exists; if so, reads the MAC from it.
-    Otherwise, generates a new one, writes it to the file, and returns it.
+    Retrieve the real MAC address of the machine as a hex string.
     """
-    if os.path.exists(VIRTUAL_MAC_FILE):
-        with open(VIRTUAL_MAC_FILE, "r") as file:
-            mac_address = file.read().strip()
-            if mac_address:
-                print(f"[DataLinkLayer] Loaded persistent virtual MAC from file: {mac_address}")
-                return mac_address
-
-    mac_bytes = [random.randint(0, 255) for _ in range(6)]
-    mac_address = ':'.join(f'{byte:02x}' for byte in mac_bytes)
-
-    with open(VIRTUAL_MAC_FILE, "w") as file:
-        file.write(mac_address)
-
-    print(f"[DataLinkLayer] Generated new virtual MAC: {mac_address}")
-    return mac_address
+    mac = ':'.join('{:02x}'.format((uuid.getnode() >> elements) & 0xff)
+                   for elements in range(0, 48, 8)[::-1])
+    return mac
 
 class DataLinkLayer:
     def __init__(self):
-        self.virtual_mac = generate_virtual_mac()
+        self.mac = get_mac_address()
+        print(f"[DataLinkLayer] Using real MAC address: {self.mac}")
 
-    def get_virtual_mac(self) -> str:
-        return self.virtual_mac
+    def get_mac(self) -> str:
+        return self.mac
+
+    def encapsulate(self, data: bytes) -> bytes:
+        """
+        Simulate data link layer encapsulation by adding a header and trailer
+        containing the real MAC address.
+        """
+        header = f"DL_HEADER({self.mac})|".encode('utf-8')
+        trailer = "|DL_TRAILER".encode('utf-8')
+        framed = header + data + trailer
+        print(f"[DataLinkLayer] Framed data: {framed}")
+        return framed
