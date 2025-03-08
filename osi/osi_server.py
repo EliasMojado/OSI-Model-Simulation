@@ -29,7 +29,7 @@ class OSIServer:
         self.ip = get_own_ip()
         self.app_layer = ApplicationLayer()
         self.presentation_layer = PresentationLayer()
-        self.session_layer = SessionLayer(receiver_ip=None, port=port)
+        self.session_layer = SessionLayer(port=port)
         self.transport_layer = TransportLayer()
         self.network_layer = NetworkLayer(src_ip=self.ip)
         self.data_link_layer = DataLinkLayer()
@@ -79,7 +79,8 @@ class OSIServer:
             self.process_received_data(initial_data, conn)
         else:
             # Otherwise, treat it as a session handshake request.
-            self.session_layer.handle_incoming_session(conn, initial_data)
+            sender_ip = addr[0]
+            self.session_layer.handle_incoming_session(conn, sender_ip, initial_data)
             conn.close()
             return
 
@@ -107,13 +108,13 @@ class OSIServer:
             data = self.data_link_layer.decapsulate(raw_data)
             print("After Data Link decapsulation:", data)
             # Step 2: Network Layer decapsulation.
-            data = self.network_layer.decapsulate(data)
+            data, sender_ip = self.network_layer.decapsulate(data)
             print("After Network decapsulation:", data)
             # Step 3: Transport Layer decapsulation.
             data, extracted_port = self.transport_layer.decapsulate(data)
             print("After Transport decapsulation:", data)
             # Step 4: Session Layer decapsulation.
-            data = self.session_layer.decapsulate(data)
+            data = self.session_layer.decapsulate(data, sender_ip)
             print("After Session decapsulation:", data)
             # Step 5: Presentation Layer decapsulation.
             data = self.presentation_layer.decapsulate(data)

@@ -132,7 +132,7 @@ def home_page(sender_name, client_socket, osi_server_ip, osi_server_port, listen
 Welcome to The Order {0}!
 Your IP Address: {1}
 
-A secret society of hackers communicating through a secret chat app.
+An anonymous messaging app.
         """
         print(banner.format(sender_name, own_ip))
         print("1. Send Message")

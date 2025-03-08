@@ -2,21 +2,25 @@ import uuid
 import socket
 
 class SessionLayer:
-    def __init__(self, receiver_ip: str = None, port: int = 5000):
-        self.receiver_ip = receiver_ip
+    def __init__(self, port: int = 5000):
         self.port = port
-        self.session_id = None
+        # A dictionary mapping sender (or connection) identifiers to session ids.
+        # For example, using the sender's IP address.
+        self.sessions = {}  # { sender_ip: session_id }
 
-    def establish_session(self) -> bool:
-        self.session_id = str(uuid.uuid4())
+    def establish_session(self, receiver_ip: str) -> bool:
+        """Client-side: Initiate a session with the receiver."""
+        session_id = str(uuid.uuid4())
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             try:
-                sock.connect((self.receiver_ip, self.port))
-                sock.sendall(self.session_id.encode('utf-8'))
-                print(f"[SessionLayer] Sent session id: {self.session_id}")
+                sock.connect((receiver_ip, self.port))
+                sock.sendall(session_id.encode('utf-8'))
+                print(f"[SessionLayer] Sent session id: {session_id} to {receiver_ip}")
                 ack = sock.recv(1024).decode('utf-8')
                 if ack == "ACK":
                     print("[SessionLayer] Session established successfully.")
+                    # Store session using receiver_ip as key
+                    self.sessions[receiver_ip] = session_id
                     return True
                 else:
                     print(f"[SessionLayer] Unexpected response: {ack}")
@@ -25,48 +29,46 @@ class SessionLayer:
                 print(f"[SessionLayer] Error establishing session: {e}")
                 return False
 
-    def handle_incoming_session(self, conn: socket.socket, initial_data: bytes) -> str:
+    def handle_incoming_session(self, conn: socket.socket, sender_ip: str, initial_data: bytes) -> str:
+        """Server-side: Handle an incoming handshake initiated by a client."""
         try:
-            self.session_id = initial_data.decode('utf-8')
+            session_id = initial_data.decode('utf-8')
             conn.sendall("ACK".encode('utf-8'))
-            print(f"[SessionLayer] Received session id: {self.session_id}. Sent ACK.")
-            return self.session_id
+            print(f"[SessionLayer] Received session id: {session_id} from {sender_ip}. Sent ACK.")
+            # Store the session id keyed by the sender's IP
+            self.sessions[sender_ip] = session_id
+            return session_id
         except Exception as e:
             print(f"[SessionLayer] Error during incoming session handshake: {e}")
             return None
 
-    def initiate_session(self, conn: socket.socket) -> str:
-        try:
-            self.session_id = str(uuid.uuid4())
-            conn.sendall(self.session_id.encode('utf-8'))
-            print(f"[SessionLayer] Sent session id: {self.session_id} to client for handshake initiation.")
-            ack = conn.recv(1024).decode('utf-8')
-            if ack == "ACK":
-                print("[SessionLayer] Session initiated successfully.")
-                return self.session_id
-            else:
-                print(f"[SessionLayer] Unexpected ACK response: {ack}")
-                return None
-        except Exception as e:
-            print(f"[SessionLayer] Error initiating session: {e}")
-            return None
-
-    def encapsulate(self, data: bytes, receiver_ip: str = None) -> bytes:
-        if not self.session_id:
-            if receiver_ip is not None:
-                self.receiver_ip = receiver_ip
-            print("[SessionLayer] No active session. Establishing session now...")
-            if not self.establish_session():
+    def encapsulate(self, data: bytes, receiver_ip: str) -> bytes:
+        """Encapsulate data with the session header for the session established with receiver_ip."""
+        if receiver_ip not in self.sessions:
+            print("[SessionLayer] No active session for receiver. Establishing session now...")
+            if not self.establish_session(receiver_ip):
                 raise Exception("Failed to establish session with the receiver.")
-        header = f"SESSION_ID:{self.session_id}|".encode('utf-8')
+        header = f"SESSION_ID:{self.sessions[receiver_ip]}|".encode('utf-8')
         encapsulated_data = header + data
         print(f"[SessionLayer] Encapsulated data: {encapsulated_data}")
         return encapsulated_data
 
-    def decapsulate(self, data: bytes) -> bytes:
+    def decapsulate(self, data: bytes, sender_ip: str) -> bytes:
+        """
+        Decapsulate the session header. Validate that the session id matches the stored session for sender_ip.
+        """
         decoded = data.decode('utf-8')
         if decoded.startswith("SESSION_ID:") and "|" in decoded:
             header_end = decoded.find("|")
+            header = decoded[:header_end]
             inner = decoded[header_end+1:]
+            received_session_id = header.split("SESSION_ID:")[1]
+            expected_session_id = self.sessions.get(sender_ip)
+            if expected_session_id is None:
+                raise Exception("No active session for sender; cannot validate incoming session id.")
+            if expected_session_id != received_session_id:
+                raise Exception(f"Session ID mismatch: expected {expected_session_id}, got {received_session_id}")
+            else:
+                print(f"[SessionLayer] Session ID validated: {received_session_id}")
             return inner.encode('utf-8')
         return data

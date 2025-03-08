@@ -1,5 +1,6 @@
 import socket
 import json
+from typing import Tuple
 
 class TransportLayer:
     def __init__(self):
@@ -45,9 +46,11 @@ class TransportLayer:
         print(f"[TransportLayer] Encapsulated data: {encapsulated_data}")
         return encapsulated_data
     
-    from typing import Tuple
-
     def decapsulate(self, data: bytes) -> Tuple[bytes, int]:
+        """
+        Decapsulate the transport header from the data.
+        Returns a tuple of the inner data and the destination port.
+        """
         decoded = data.decode('utf-8')
         if decoded.startswith("TRANS_HEADER:") and "|" in decoded:
             # Expected format: "TRANS_HEADER:{dest_port}|{inner_data}"
