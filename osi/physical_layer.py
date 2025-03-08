@@ -8,13 +8,13 @@ class PhysicalLayer:
         """
         Transmit the data to the destination IP and port.
         """
-        print("OSI: [physical layer] Transmitting data:")
-        print("     ", data)
+        print("[PhysicalLayer] Transmitting data: ", data)
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                print("OSI: [physical layer] Connecting to {}:{}".format(ip_address, dest_port))
+                print("[PhysicalLayer] Connecting to {}:{}".format(ip_address, dest_port))
+                print()
                 s.connect((ip_address, dest_port))
                 s.sendall(data)
-                print("OSI: [physical layer] Data transmitted successfully.")
+                print("[PhysicalLayer] Data transmitted successfully.", end="\n\n")
         except Exception as e:
-            print("OSI: [physical layer] Error transmitting data:", e)
+            print("[PhysicalLayer] Error transmitting data:", e)
