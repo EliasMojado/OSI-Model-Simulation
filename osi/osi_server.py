@@ -1,6 +1,9 @@
 import socket
 import threading
 import json
+
+from cryptography.fernet import Fernet
+
 from application_layer import ApplicationLayer
 from datalink_layer import DataLinkLayer
 from presentation_layer import PresentationLayer
@@ -28,7 +31,7 @@ class OSIServer:
         self.port = port
         self.ip = get_own_ip()
         self.app_layer = ApplicationLayer()
-        self.presentation_layer = PresentationLayer()
+        self.presentation_layer = PresentationLayer(key=Fernet.generate_key())
         self.session_layer = SessionLayer(port=port)
         self.transport_layer = TransportLayer()
         self.network_layer = NetworkLayer(src_ip=self.ip)
